@@ -40,6 +40,14 @@ body {
   text-align: center;
 }
 
+.upload-card input[type="text"] {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
 .upload-zone {
   border: 2px dashed var(--primary);
   border-radius: 8px;
