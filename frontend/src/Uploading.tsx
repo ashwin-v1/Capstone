@@ -1,24 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Document, Page } from 'react-pdf';
+import { useNavigate } from 'react-router-dom';
 import type { FileRejection } from 'react-dropzone';
+import { Document, Page } from 'react-pdf';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import { FileText, Microscope, Activity } from 'lucide-react';
 import './index.css';
 
-interface AnalysisResults {
-    pdfCount: number;
-    topic: string[];
-    score: string[];
-    confidence: number;
-}
-
 const Uploading = () => {
     const [pdfFiles, setPdfFiles] = useState<File[]>([]);
-    const [pdfUrls, setPdfUrls] = useState<string[]>([]);
-    const [results, setResults] = useState<AnalysisResults | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [topicName, setTopicName] = useState<string>("");
+    const navigate = useNavigate();
 
     const { getRootProps, getInputProps } = useDropzone({
         accept: { 'application/pdf': ['.pdf'] },
@@ -32,45 +25,30 @@ const Uploading = () => {
         },
     });
 
-    useEffect(() => {
-        if (pdfFiles.length > 0) {
-            const urls = pdfFiles.map((file) => URL.createObjectURL(file));
-            setPdfUrls(urls);
-            return () => {
-                urls.forEach((url) => URL.revokeObjectURL(url));
-            };
-        }
-    }, [pdfFiles]);
-
     const handleFileUpload = async (files: File[]) => {
         setIsProcessing(true);
         setPdfFiles(files);
-        setResults(null);
+
+        const formData = new FormData();
+        files.forEach(file => formData.append('pdfs', file));
+        formData.append('topic', topicName);
 
         try {
-            const mockResults = await processPDF(files);
-            setResults(mockResults);
+            const response = await fetch('http://localhost:5000/api/upload', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) throw new Error('Upload failed');
+
+            const data = await response.json();
+            navigate('/results', { state: data });
         } catch (error) {
-            console.error('Error processing PDF:', error);
-            alert('Error processing PDF. Please try again.');
+            console.error('Error:', error);
+            alert('Error processing PDFs. Please try again.');
         } finally {
             setIsProcessing(false);
         }
-    };
-
-    const processPDF = async (files: File[]): Promise<AnalysisResults> => {
-        return new Promise((resolve) =>
-            setTimeout(
-                () =>
-                    resolve({
-                        pdfCount: files.length,
-                        topic: topicName ? [topicName] : ['Default Topic'],
-                        score: ['score'],
-                        confidence: 0.92,
-                    }),
-                2000
-            )
-        );
     };
 
     return (
@@ -102,33 +80,9 @@ const Uploading = () => {
                     )}
                 </section>
                 {isProcessing && <div className="loading-spinner"></div>}
-                {results && pdfUrls.length > 0 && (
-                    <>
-                        <AnalysisResultsView results={results} />
-                    </>
-                )}
             </div>
         </div>
     );
 };
-
-const AnalysisResultsView: React.FC<{ results: AnalysisResults }> = ({ results }) => (
-    <div style={{ marginTop: '2rem', textAlign: 'left' }}>
-        <h2>
-            <Microscope style={{ marginRight: '0.5rem' }} />
-            Analysis Results
-        </h2>
-        <h3>Number of PDFs Uploaded</h3>
-        <p>{results.pdfCount}</p>
-        <h3>Topic</h3>
-        <p>{results.topic.join(', ')}</p>
-        <h3>Score</h3>
-        <p>{results.score.join(', ')}</p>
-        <p>
-            <Activity style={{ marginRight: '0.5rem' }} />
-            Analysis Confidence: {(results.confidence * 100).toFixed(1)}%
-        </p>
-    </div>
-);
 
 export default Uploading;

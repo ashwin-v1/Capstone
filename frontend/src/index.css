@@ -40,6 +40,7 @@ body {
   text-align: center;
 }
 
+/* Style for the topic input inside the upload card */
 .upload-card input[type="text"] {
   width: 100%;
   padding: 0.5rem;
