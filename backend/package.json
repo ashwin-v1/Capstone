@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "chart.js": "^4.4.8",
+    "http-proxy-middleware": "^3.0.5",
     "lucide-react": "^0.487.0",
     "pdfjs-dist": "^5.1.91",
     "react-chartjs-2": "^5.3.0",

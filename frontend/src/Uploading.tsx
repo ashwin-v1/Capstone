@@ -31,6 +31,7 @@ const Uploading = () => {
 
         const formData = new FormData();
         files.forEach(file => formData.append('pdfs', file));
+        // Pass the topic if provided (the backend includes it in the response for each file)
         formData.append('topic', topicName);
 
         try {
@@ -42,6 +43,7 @@ const Uploading = () => {
             if (!response.ok) throw new Error('Upload failed');
 
             const data = await response.json();
+            // 'data' contains { pdfCount, extractions: [ { filename, topic, parameters } ] }
             navigate('/results', { state: data });
         } catch (error) {
             console.error('Error:', error);
@@ -61,7 +63,7 @@ const Uploading = () => {
                         type="text"
                         value={topicName}
                         onChange={(e) => setTopicName(e.target.value)}
-                        placeholder="Enter topic name"
+                        placeholder="Enter topic name (optional)"
                         style={{
                             width: '100%',
                             padding: '0.5rem',
