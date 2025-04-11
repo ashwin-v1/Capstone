@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, after_this_request
 from unsloth import FastLanguageModel
 from flask_cors import CORS
 from io import BytesIO
@@ -20,15 +20,15 @@ CORS(app)
 MAX_FILE_SIZE_MB = 100
 ALLOWED_EXTENSIONS = {'pdf'}
 
-#Initialize the OpenAI client
+#Init openai api
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
-#Folder for "bad" PDFs
+#Folder for bad pdfs
 BAD_PDF_DIR = os.path.join(os.getcwd(), 'bad_pdfs')
 if not os.path.exists(BAD_PDF_DIR):
     os.makedirs(BAD_PDF_DIR)
 
-#Folder for "good" PDFs
+#Folder for good pdfs
 GOOD_PDF_DIR = os.path.join(os.getcwd(), 'good_pdfs')
 if not os.path.exists(GOOD_PDF_DIR):
     os.makedirs(GOOD_PDF_DIR)
@@ -137,6 +137,8 @@ def handle_upload():
             return jsonify({'error': 'No files selected'}), 400
 
         results = []
+        goodCount = 0
+        badCount = 0
         for file in files:
             if file and allowed_file(file.filename):
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
@@ -160,9 +162,17 @@ def handle_upload():
                     prediction = modelInference(topic, parameters["title"], parameters["abstract"], parameters["num_references"], parameters["study_type"], parameters["study_population_size"])
 
                     #Default to bad pdf for now
-                    bad_pdf_path = os.path.join(BAD_PDF_DIR, file.filename)
-                    with open(tmp.name, 'rb') as src, open(bad_pdf_path, 'wb') as dst:
-                        dst.write(src.read())
+                    if "good" in prediction:
+                        goodCount += 1
+                        good_pdf_path = os.path.join(GOOD_PDF_DIR, file.filename)
+                        with open(tmp.name, 'rb') as src, open(good_pdf_path, 'wb') as dst:
+                            dst.write(src.read())
+                    
+                    if "bad" in prediction:
+                        badCount += 1
+                        bad_pdf_path = os.path.join(BAD_PDF_DIR, file.filename)
+                        with open(tmp.name, 'rb') as src, open(bad_pdf_path, 'wb') as dst:
+                            dst.write(src.read())
 
                     extraction_string = parameters.get("extraction_string") if "error" not in parameters else parameters.get("error")
                     print(f"Extraction for {file.filename}: {extraction_string}")
@@ -173,11 +183,15 @@ def handle_upload():
                         'parameters': parameters,
                         'extractionString': extraction_string
                     })
+                    print()
                 os.unlink(tmp.name)
 
-        print("Upload extraction results:", results)
+        # print("Upload extraction results:", results)
         return jsonify({
             'pdfCount': len(results),
+            'goodCount': goodCount,
+            'badCount': badCount,
+            'topic': topic,
             'extractions': results
         })
 
@@ -188,16 +202,38 @@ def handle_upload():
 @app.route('/api/download', methods=['GET'])
 def download_files():
     """
-    Create a zip archive containing all PDFs from the 'bad_pdfs' folder.
+    Create a zip archive to download
     """
     memory_file = BytesIO()
     with zipfile.ZipFile(memory_file, 'w') as zf:
-        for root, dirs, files in os.walk(BAD_PDF_DIR):
+        #Add bad PDFs
+        for root, _, files in os.walk(BAD_PDF_DIR):
             for filename in files:
                 file_path = os.path.join(root, filename)
-                zf.write(file_path, arcname=filename)
+                zf.write(file_path, arcname=os.path.join('bad_pdfs', filename))
+
+        #Add good PDFs
+        for root, _, files in os.walk(GOOD_PDF_DIR):
+            for filename in files:
+                file_path = os.path.join(root, filename)
+                zf.write(file_path, arcname=os.path.join('good_pdfs', filename))
+
     memory_file.seek(0)
-    return send_file(memory_file, download_name='bad_pdfs.zip', as_attachment=True)
+    
+    @after_this_request
+    def cleanup(response):
+        try:
+            #Clear bad_pdfs and good_pdfs data
+            for folder in [BAD_PDF_DIR, GOOD_PDF_DIR]:
+                for f in os.listdir(folder):
+                    file_path = os.path.join(folder, f)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+        except Exception as e:
+            print("Cleanup error:", e)
+        return response
+
+    return send_file(memory_file, download_name='all_pdfs.zip', as_attachment=True)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true')
