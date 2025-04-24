@@ -1,17 +1,25 @@
 import React from 'react';
 import { Pie } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, } from 'chart.js';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { useLocation } from 'react-router-dom';
 import './results.css';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
+
+interface Extraction {
+    filename: string;
+    topic: string;
+    parameters: any;
+    extractionString: string;
+    prediction: string;
+}
 
 interface ResultsData {
     topic: string;
     goodCount: number;
     badCount: number;
     pdfCount: number;
-    confidence: number;
+    extractions: Extraction[];
 }
 
 const Results: React.FC = () => {
@@ -40,7 +48,7 @@ const Results: React.FC = () => {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'results.zip';
+            a.download = 'bad_pdfs.zip';
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
@@ -64,6 +72,16 @@ const Results: React.FC = () => {
                 <button className="download-button" onClick={handleDownload}>
                     Download ZIP file of PDFs
                 </button>
+            </div>
+            <div className="extractions-list">
+                <h2>Extraction Details</h2>
+                {results.extractions.map((item, index) => (
+                    <div key={index} className="extraction-item">
+                        <p><strong>Filename:</strong> {item.filename}</p>
+                        <p><strong>Extraction:</strong> {item.extractionString}</p>
+                        <p><strong>Prediction:</strong> {item.prediction}</p>
+                    </div>
+                ))}
             </div>
         </div>
     );
